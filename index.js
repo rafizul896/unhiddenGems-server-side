@@ -5,7 +5,12 @@ const app = express();
 const port = process.env.PORT || 5000
 
 // middleware
-app.use(cors())
+const corsOptions = {
+    origin: ['http://localhost:5173', 'http://localhost:5174'],
+    credentials: true,
+    optionSuccessStatus: 200,
+}
+app.use(cors(corsOptions))
 app.use(express.json())
 
 
@@ -27,11 +32,33 @@ async function run() {
         const packagesCollection = client.db('tourist-Guide').collection('packages');
         const wishlistsCollection = client.db('tourist-Guide').collection('wishlist');
 
+        // tourGuides
         app.get('/tourGuides', async (req, res) => {
             const result = await tourGuidesCollection.find().toArray();
             res.send(result);
         })
-        
+
+        app.get('/tourGuides/:id', async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) };
+            const result = await tourGuidesCollection.findOne(query);
+            res.send(result);
+        })
+
+        // add a review
+        app.patch('/addReview/:id', async (req, res) => {
+            const id = req.params.id;
+            const review = req.body;
+            const filter = { _id: new ObjectId(id) };
+            const tourGuide = await tourGuidesCollection.findOne(filter);
+            const isExist = tourGuide.reviews.find(r => r.userName === review.userName)
+            if (isExist) {
+                return res.send({ message: 'exist' })
+            }
+            const result = await tourGuidesCollection.updateOne(filter, { $push: { reviews: review } });
+            res.send(result);
+        })
+
         // get packages collections
         app.get('/packages', async (req, res) => {
             const result = await packagesCollection.find().toArray();
@@ -70,7 +97,6 @@ async function run() {
     }
 }
 run().catch(console.dir);
-
 
 app.get('/', (req, res) => {
     res.send(`Hello from Tourist Guide server..!`)
