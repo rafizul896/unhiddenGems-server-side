@@ -1,8 +1,9 @@
 const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
+const jwt = require('jsonwebtoken');
 const app = express();
-const port = process.env.PORT || 5000
+const port = process.env.PORT || 5000;
 
 // middleware
 const corsOptions = {
@@ -12,7 +13,21 @@ const corsOptions = {
 }
 app.use(cors(corsOptions))
 app.use(express.json())
-
+// verify Token
+const verifyToken = (req, res, next) => {
+    if (!req.headers.authorization) {
+        return res.status(401).send({ message: 'unauthorid access' })
+    }
+    const token = req.headers.authorization.split(' ')[1];
+    jwt.verify(token, process.env.ACCESS_TOKEN_KEY, (err, decoded) => {
+        if (err) {
+            console.log(err)
+            return res.status(401).send({ message: 'unauthorid access' })
+        }
+        req.user = decoded;
+        next();
+    })
+}
 
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const uri = `mongodb+srv://${process.env.USER_DB}:${process.env.PASS_DB}@cluster0.y7qmkns.mongodb.net/?retryWrites=true&w=majority&appName=cluster0`;
@@ -31,6 +46,52 @@ async function run() {
         const tourGuidesCollection = client.db('tourist-Guide').collection('tourGuides');
         const packagesCollection = client.db('tourist-Guide').collection('packages');
         const wishlistsCollection = client.db('tourist-Guide').collection('wishlist');
+        const bookingsCollection = client.db('tourist-Guide').collection('booking');
+        const usersCollection = client.db('tourist-Guide').collection('users');
+
+        // jwt related
+        app.post('/jwt', async (req, res) => {
+            const user = req.body;
+            const token = jwt.sign(user, process.env.ACCESS_TOKEN_KEY, { expiresIn: '1d' });
+            res.send({ token })
+        })
+
+        // save user data in mongoDB
+        app.post('/user', async (req, res) => {
+            const user = req.body;
+            const query = { email: user.email };
+            // check the user already exists in DB
+            const isExist = await usersCollection.findOne(query);
+            if (isExist) {
+                return
+            }
+            const result = await usersCollection.insertOne(user);
+            res.send(result)
+        })
+        // get all users
+        app.get('/users', async (req, res) => {
+            const result = await usersCollection.find().toArray();
+            res.send(result);
+        })
+
+        // get a user 
+        app.get('/user/:email', async (req, res) => {
+            const email = req.params.email;
+            const result = await usersCollection.findOne({ email });
+            res.send(result);
+        })
+
+        // update user role
+        app.patch('/users/update/:email', async (req, res) => {
+            const email = req.params.email;
+            const user = req.body;
+            const query = { email: email };
+            const updateDoc = {
+                $set: { ...user }
+            }
+            const result = await usersCollection.updateOne(query, updateDoc);
+            res.send(result);
+        })
 
         // tourGuides
         app.get('/tourGuides', async (req, res) => {
@@ -78,15 +139,65 @@ async function run() {
             res.send(result);
         })
 
+        // a user wishlist
+        app.get('/wishlist/:email', async (req, res) => {
+            const email = req.params.email;
+            const query = { 'tourist.email': email };
+            const result = await wishlistsCollection.find(query).toArray();
+            res.send(result);
+        })
+
         app.post('/wishlist', async (req, res) => {
             const package = req.body;
-            const query = { packageId: package.packageId }
+            const email = package?.tourist?.email
+            const query = { packageId: package.packageId, 'tourist.email': email }
             const isExist = await wishlistsCollection.findOne(query)
             if (isExist) {
                 return res.send({ message: 'exist' })
             }
             const result = await wishlistsCollection.insertOne(package);
             res.send(result)
+        })
+
+        // delete a wish
+        app.delete('/wishlist/:id', async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) };
+            const result = await wishlistsCollection.deleteOne(query);
+            res.send(result);
+        })
+        
+        // booking
+        app.get('/bookings', async (req, res) => {
+            const result = await bookingsCollection.find().toArray();
+            res.send(result);
+        })
+
+        app.post('/bookings', async (req, res) => {
+            const bookingInfo = req.body;
+            const filter = { packageName: bookingInfo.packageName }
+            const isExist = await bookingsCollection.findOne(filter);
+            if (isExist) {
+                return res.send({ message: 'exist' })
+            }
+            const result = await bookingsCollection.insertOne(bookingInfo);
+            res.send(result);
+        })
+
+        // get a booking data
+        app.get('/booking/:email', async (req, res) => {
+            const email = req.params.email;
+            const query = { 'touristInfo.touristEmail': email };
+            const result = await bookingsCollection.find(query).toArray();
+            res.send(result)
+        })
+
+        // delete a booking
+        app.delete('/booking/:id', async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) };
+            const result = await bookingsCollection.deleteOne(query);
+            res.send(result);
         })
 
         // Send a ping to confirm a successful connection
