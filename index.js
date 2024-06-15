@@ -166,7 +166,7 @@ async function run() {
             const result = await wishlistsCollection.deleteOne(query);
             res.send(result);
         })
-        
+
         // booking
         app.get('/bookings', async (req, res) => {
             const result = await bookingsCollection.find().toArray();
@@ -175,7 +175,11 @@ async function run() {
 
         app.post('/bookings', async (req, res) => {
             const bookingInfo = req.body;
-            const filter = { packageName: bookingInfo.packageName }
+            const email = bookingInfo.touristInfo.touristEmail
+            const filter = {
+                packageName: bookingInfo.packageName,
+                'touristInfo.touristEmail': email
+            }
             const isExist = await bookingsCollection.findOne(filter);
             if (isExist) {
                 return res.send({ message: 'exist' })
@@ -197,6 +201,27 @@ async function run() {
             const id = req.params.id;
             const query = { _id: new ObjectId(id) };
             const result = await bookingsCollection.deleteOne(query);
+            res.send(result);
+        })
+
+        // assigned-tours
+        app.get('/assigned-tours/:name', async (req, res) => {
+            const name = req.params.name;
+            const query = { tourGuideName: name };
+            const result = await bookingsCollection.find(query).toArray();
+            res.send(result);
+        })
+
+         // update user role
+         app.patch('/booking/status/:id', async (req, res) => {
+            const id = req.params.id;
+            const data = req.body;
+            console.log(data)
+            const query = { _id: new ObjectId(id) };
+            const updateDoc = {
+                $set: { ...data }
+            }
+            const result = await bookingsCollection.updateOne(query, updateDoc);
             res.send(result);
         })
 
