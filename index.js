@@ -70,7 +70,19 @@ async function run() {
         })
         // get all users
         app.get('/users', async (req, res) => {
-            const result = await usersCollection.find().toArray();
+            const search = req.query.search;
+            const role = req.query.filter;
+            let query = {}
+            if (search) {
+                query.$or = [
+                    { name: new RegExp(search, 'i') },
+                    { email: new RegExp(search, 'i') }
+                ]
+            }
+            if (role) {
+                query.role = role
+            }
+            const result = await usersCollection.find(query).toArray();
             res.send(result);
         })
 
@@ -91,6 +103,18 @@ async function run() {
             }
             const result = await usersCollection.updateOne(query, updateDoc);
             res.send(result);
+        })
+
+        // Manage Users update role
+        app.patch('/users/:id', async (req, res) => {
+            const id = req.params.id;
+            const data = req.body;
+            const query = { _id: new ObjectId(id) };
+            const updateDoc = {
+                $set: { ...data }
+            }
+            const result = await usersCollection.updateOne(query, updateDoc);
+            res.send(result)
         })
 
         // tourGuides
@@ -126,10 +150,18 @@ async function run() {
             res.send(result);
         })
 
+        // get a package
         app.get('/packages/:id', async (req, res) => {
             const id = req.params.id;
             const query = { _id: new ObjectId(id) };
             const result = await packagesCollection.findOne(query);
+            res.send(result);
+        })
+
+        // add a package
+        app.post('/packages',async(req,res)=>{
+            const data = req.body;
+            const result = await packagesCollection.insertOne(data);
             res.send(result);
         })
 
@@ -212,8 +244,8 @@ async function run() {
             res.send(result);
         })
 
-         // update user role
-         app.patch('/booking/status/:id', async (req, res) => {
+        // update user role
+        app.patch('/booking/status/:id', async (req, res) => {
             const id = req.params.id;
             const data = req.body;
             console.log(data)
