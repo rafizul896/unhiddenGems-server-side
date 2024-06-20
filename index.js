@@ -146,7 +146,12 @@ async function run() {
 
         // get packages collections
         app.get('/packages', async (req, res) => {
-            const result = await packagesCollection.find().toArray();
+            const type = req.query?.type;
+            const query = {}
+            if (type) {
+                query.tourType = type
+            }
+            const result = await packagesCollection.find(query).toArray();
             res.send(result);
         })
 
@@ -159,7 +164,7 @@ async function run() {
         })
 
         // add a package
-        app.post('/packages',async(req,res)=>{
+        app.post('/packages', async (req, res) => {
             const data = req.body;
             const result = await packagesCollection.insertOne(data);
             res.send(result);
