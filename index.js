@@ -48,6 +48,7 @@ async function run() {
         const wishlistsCollection = client.db('tourist-Guide').collection('wishlist');
         const bookingsCollection = client.db('tourist-Guide').collection('booking');
         const usersCollection = client.db('tourist-Guide').collection('users');
+        const storiesCollection = client.db('tourist-Guide').collection('stories');
 
         // jwt related
         app.post('/jwt', async (req, res) => {
@@ -147,7 +148,7 @@ async function run() {
         // get packages collections
         app.get('/packages', async (req, res) => {
             const type = req.query?.type;
-            const query = {}
+            const query = {};
             if (type) {
                 query.tourType = type
             }
@@ -259,6 +260,20 @@ async function run() {
                 $set: { ...data }
             }
             const result = await bookingsCollection.updateOne(query, updateDoc);
+            res.send(result);
+        })
+
+        //*{stories}*//
+        app.get('/stories', async (req, res) => {
+            const size = parseInt(req.query?.size);
+            const result = await storiesCollection.find().limit(size).toArray();
+            res.send(result);
+        })
+        // get a story
+        app.get('/stories/:id', async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) }
+            const result = await storiesCollection.findOne(query);
             res.send(result);
         })
 
