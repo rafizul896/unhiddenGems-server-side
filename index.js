@@ -73,6 +73,8 @@ async function run() {
         app.get('/users', async (req, res) => {
             const search = req.query.search;
             const role = req.query.filter;
+            const size = parseInt(req.query.size);
+            const page = parseInt(req.query.page);
             let query = {}
             if (search) {
                 query.$or = [
@@ -83,7 +85,8 @@ async function run() {
             if (role) {
                 query.role = role
             }
-            const result = await usersCollection.find(query).toArray();
+            const skip = (page - 1) * size
+            const result = await usersCollection.find(query).skip(skip).limit(size).toArray();
             res.send(result);
         })
 
@@ -148,11 +151,12 @@ async function run() {
         // get packages collections
         app.get('/packages', async (req, res) => {
             const type = req.query?.type;
+            const size = parseInt(req.query?.size);
             const query = {};
             if (type) {
                 query.tourType = type
             }
-            const result = await packagesCollection.find(query).toArray();
+            const result = await packagesCollection.find(query).limit(size).toArray();
             res.send(result);
         })
 
@@ -245,8 +249,11 @@ async function run() {
         // assigned-tours
         app.get('/assigned-tours/:name', async (req, res) => {
             const name = req.params.name;
+            const size = parseInt(req.query?.size);
+            const page = parseInt(req.query?.page);
             const query = { tourGuideName: name };
-            const result = await bookingsCollection.find(query).toArray();
+            const skip = (page - 1) * size
+            const result = await bookingsCollection.find(query).skip(skip).limit(size).toArray();
             res.send(result);
         })
 
@@ -275,6 +282,39 @@ async function run() {
             const query = { _id: new ObjectId(id) }
             const result = await storiesCollection.findOne(query);
             res.send(result);
+        })
+
+        // post a story
+        app.post('/stories', async (req, res) => {
+            const data = req.body;
+            const result = await storiesCollection.insertOne(data);
+            res.send(result);
+        })
+
+
+        // only totalCount
+        app.get('/users-total', async (req, res) => {
+            const search = req.query?.search;
+            const role = req.query?.filter;
+            let query = {};
+            if (search) {
+                query.$or = [
+                    { name: new RegExp(search, 'i') },
+                    { email: new RegExp(search, 'i') }
+                ]
+            }
+            if (role) {
+                query.role = role
+            }
+            const result = await usersCollection.countDocuments(query);
+            res.send({ count: result });
+        })
+
+        app.get('/assigned-tours-total/:name', async (req, res) => {
+            const name = req.params.name;
+            const query = { tourGuideName: name };
+            const result = await bookingsCollection.countDocuments(query);
+            res.send({ count: result });
         })
 
         // Send a ping to confirm a successful connection
