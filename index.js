@@ -7,12 +7,13 @@ const port = process.env.PORT || 5000;
 
 // middleware
 const corsOptions = {
-    origin: ['http://localhost:5173', 'http://localhost:5174'],
+    origin: ['http://localhost:5173', 'http://localhost:5174', 'https://assignment-twelve-f7a9a.web.app', 'https://touristguide-2ce57.firebaseapp.com'],
     credentials: true,
     optionSuccessStatus: 200,
 }
 app.use(cors(corsOptions))
 app.use(express.json())
+
 // verify Token
 const verifyToken = (req, res, next) => {
     if (!req.headers.authorization) {
@@ -50,6 +51,28 @@ async function run() {
         const usersCollection = client.db('tourist-Guide').collection('users');
         const storiesCollection = client.db('tourist-Guide').collection('stories');
 
+        // Verify Admin Middleware
+        const verifyAdmin = async (req, res, next) => {
+            const user = req.user;
+            const query = { email: user?.email };
+            const result = await usersCollection.findOne(query)
+            if (!result || result?.role !== 'Admin') {
+                return res.status(401).send({ message: 'unauthorized access' })
+            }
+            next()
+        }
+
+        // Verify Tour Guide Middleware
+        const verifyTourGuide = async (req, res, next) => {
+            const user = req.user;
+            const query = { email: user?.email };
+            const result = await usersCollection.findOne(query);
+            if (!result || result?.role !== 'Tour Guide') {
+                return res.status(401).send({ message: 'unauthorized access' });
+            }
+            next();
+        }
+
         // jwt related
         app.post('/jwt', async (req, res) => {
             const user = req.body;
@@ -70,7 +93,7 @@ async function run() {
             res.send(result)
         })
         // get all users
-        app.get('/users', async (req, res) => {
+        app.get('/users', verifyToken, verifyAdmin, async (req, res) => {
             const search = req.query.search;
             const role = req.query.filter;
             const size = parseInt(req.query.size);
@@ -98,7 +121,7 @@ async function run() {
         })
 
         // update user role
-        app.patch('/users/update/:email', async (req, res) => {
+        app.patch('/users/update/:email', verifyToken, async (req, res) => {
             const email = req.params.email;
             const user = req.body;
             const query = { email: email };
@@ -110,7 +133,7 @@ async function run() {
         })
 
         // Manage Users update role
-        app.patch('/users/:id', async (req, res) => {
+        app.patch('/users/:id', verifyToken, verifyAdmin, async (req, res) => {
             const id = req.params.id;
             const data = req.body;
             const query = { _id: new ObjectId(id) };
@@ -127,6 +150,12 @@ async function run() {
             res.send(result);
         })
 
+        app.post('/tourGuides', verifyToken, async (req, res) => {
+            const data = req.body;
+            const result = await tourGuidesCollection.insertOne(data);
+            res.send(result);
+        })
+
         app.get('/tourGuides/:id', async (req, res) => {
             const id = req.params.id;
             const query = { _id: new ObjectId(id) };
@@ -135,7 +164,7 @@ async function run() {
         })
 
         // add a review
-        app.patch('/addReview/:id', async (req, res) => {
+        app.patch('/addReview/:id', verifyToken, async (req, res) => {
             const id = req.params.id;
             const review = req.body;
             const filter = { _id: new ObjectId(id) };
@@ -169,7 +198,7 @@ async function run() {
         })
 
         // add a package
-        app.post('/packages', async (req, res) => {
+        app.post('/packages', verifyToken, verifyAdmin, async (req, res) => {
             const data = req.body;
             const result = await packagesCollection.insertOne(data);
             res.send(result);
@@ -182,10 +211,17 @@ async function run() {
         })
 
         // a user wishlist
-        app.get('/wishlist/:email', async (req, res) => {
+        app.get('/wishlist/:email', verifyToken, async (req, res) => {
+            const size = parseInt(req.query?.size);
+            const page = parseInt(req.query?.page);
             const email = req.params.email;
+            const tokenData = req.user?.email;
+            if (tokenData !== email) {
+                return res.status(403).send({ message: 'unauthorid access' })
+            }
             const query = { 'tourist.email': email };
-            const result = await wishlistsCollection.find(query).toArray();
+            const skip = (page - 1) * size
+            const result = await wishlistsCollection.find(query).skip(skip).limit(size).toArray();
             res.send(result);
         })
 
@@ -215,7 +251,7 @@ async function run() {
             res.send(result);
         })
 
-        app.post('/bookings', async (req, res) => {
+        app.post('/bookings', verifyToken, async (req, res) => {
             const bookingInfo = req.body;
             const email = bookingInfo.touristInfo.touristEmail
             const filter = {
@@ -230,16 +266,23 @@ async function run() {
             res.send(result);
         })
 
-        // get a booking data
-        app.get('/booking/:email', async (req, res) => {
+        // get a user booking data
+        app.get('/booking/:email', verifyToken, async (req, res) => {
+            const size = parseInt(req.query?.size);
+            const page = parseInt(req.query?.page);
             const email = req.params.email;
+            const tokenData = req.user?.email;
+            if (tokenData !== email) {
+                return res.status(403).send({ message: 'unauthorid access' })
+            }
             const query = { 'touristInfo.touristEmail': email };
-            const result = await bookingsCollection.find(query).toArray();
+            const skip = (page - 1) * size
+            const result = await bookingsCollection.find(query).skip(skip).limit(size).toArray();
             res.send(result)
         })
 
         // delete a booking
-        app.delete('/booking/:id', async (req, res) => {
+        app.delete('/booking/:id', verifyToken, async (req, res) => {
             const id = req.params.id;
             const query = { _id: new ObjectId(id) };
             const result = await bookingsCollection.deleteOne(query);
@@ -247,7 +290,7 @@ async function run() {
         })
 
         // assigned-tours
-        app.get('/assigned-tours/:name', async (req, res) => {
+        app.get('/assigned-tours/:name', verifyToken, verifyTourGuide, async (req, res) => {
             const name = req.params.name;
             const size = parseInt(req.query?.size);
             const page = parseInt(req.query?.page);
@@ -285,15 +328,14 @@ async function run() {
         })
 
         // post a story
-        app.post('/stories', async (req, res) => {
+        app.post('/stories', verifyToken, async (req, res) => {
             const data = req.body;
             const result = await storiesCollection.insertOne(data);
             res.send(result);
         })
 
-
         // only totalCount
-        app.get('/users-total', async (req, res) => {
+        app.get('/users-total', verifyToken, async (req, res) => {
             const search = req.query?.search;
             const role = req.query?.filter;
             let query = {};
@@ -314,6 +356,20 @@ async function run() {
             const name = req.params.name;
             const query = { tourGuideName: name };
             const result = await bookingsCollection.countDocuments(query);
+            res.send({ count: result });
+        })
+
+        app.get('/booking-total/:email', async (req, res) => {
+            const email = req.params.email;
+            const query = { 'touristInfo.touristEmail': email };
+            const result = await bookingsCollection.countDocuments(query);
+            res.send({ count: result });
+        })
+
+        app.get('/wishlist-total/:email', async (req, res) => {
+            const email = req.params.email;
+            const query = { 'tourist.email': email };
+            const result = await wishlistsCollection.countDocuments(query);
             res.send({ count: result });
         })
 
