@@ -7,7 +7,7 @@ const port = process.env.PORT || 5000;
 
 // middleware
 const corsOptions = {
-    origin: ['http://localhost:5173', 'http://localhost:5174', 'https://assignment-twelve-f7a9a.web.app', 'https://touristguide-2ce57.firebaseapp.com'],
+    origin: ['http://localhost:5173', 'http://localhost:5174', 'https://touristguide-2ce57.web.app', 'https://touristguide-2ce57.firebaseapp.com'],
     credentials: true,
     optionSuccessStatus: 200,
 }
